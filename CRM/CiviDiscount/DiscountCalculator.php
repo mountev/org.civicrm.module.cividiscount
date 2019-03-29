@@ -28,12 +28,13 @@ class CRM_CiviDiscount_DiscountCalculator {
    * @param string $code
    * @param bool $is_display_field_mode - ie are we trying to calculate whether it would be possible to find a discount cod
    */
-  public function __construct($entity, $entity_id, $contact_id, $code, $is_display_field_mode) {
+  public function __construct($entity, $entity_id, $contact_id, $code, $is_display_field_mode, $includeUsedCodeAsValid = FALSE) {
     if (empty($code) && empty($contact_id) && !$is_display_field_mode) {
       $this->discounts = [];
     }
     else {
-      $this->discounts = CRM_CiviDiscount_BAO_Item::getValidDiscounts();
+      $includeCode = $includeUsedCodeAsValid ? $code : NULL;
+      $this->discounts = CRM_CiviDiscount_BAO_Item::getValidDiscounts($includeCode);
     }
     $this->entity = $entity;
     $this->contact_id = $contact_id;

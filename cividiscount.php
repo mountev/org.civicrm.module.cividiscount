@@ -283,6 +283,8 @@ function cividiscount_civicrm_buildAmount($pageType, &$form, &$amounts) {
       return;
     }
 
+    $includeUsedCodeAsValid = FALSE;
+    $apcount = FALSE;
     $contact_id = _cividiscount_get_form_contact_id($form);
     $autodiscount = FALSE;
     $eid = $form->getVar('_eventId');
@@ -291,11 +293,25 @@ function cividiscount_civicrm_buildAmount($pageType, &$form, &$amounts) {
     $v = $form->getVar('_values');
 
     $code = trim(CRM_Utils_Request::retrieve('discountcode', 'String', $form, FALSE, NULL, 'REQUEST'));
-    if (!array_key_exists('discountcode', $form->_submitValues)
-      && ($pid = $form->getVar('_participantId'))
+    if (($pid = $form->getVar('_participantId'))
       && ($form->getVar('_action') & CRM_Core_Action::UPDATE)
     ) {
-      $code = _cividiscount_get_item_by_track('civicrm_participant', $pid, $contact_id, TRUE);
+      $usedCode = _cividiscount_get_item_by_track('civicrm_participant', $pid, $contact_id, TRUE);
+      if (!array_key_exists('discountcode', $form->_submitValues)) {
+        // code displayed on form load
+        $code = $usedCode;
+      }
+      if (get_class($form) == 'CRM_Event_Form_ParticipantFeeSelection') {
+        // For fee selection screen - on form load (edit), and if code submitted is same as usedCode -
+        // we want discount library to load used code as valid one.
+        if (!array_key_exists('discountcode', $form->_submitValues) ||
+          (array_key_exists('discountcode', $form->_submitValues) && 
+          $form->_submitValues['discountcode'] == $usedCode)
+        ) {
+          $includeUsedCodeAsValid = TRUE;
+          $apcount = 1;
+        }
+      }
     }
 
     if (!empty($v['currency'])) {
@@ -332,7 +348,7 @@ function cividiscount_civicrm_buildAmount($pageType, &$form, &$amounts) {
 
     $form->set('_discountInfo', NULL);
     $discountEntity = ($pageType == 'membership') ? 'membership_type' : 'event';
-    $discountCalculator = new CRM_CiviDiscount_DiscountCalculator($discountEntity, $eid, $contact_id, $code, FALSE);
+    $discountCalculator = new CRM_CiviDiscount_DiscountCalculator($discountEntity, $eid, $contact_id, $code, FALSE, $includeUsedCodeAsValid);
 
     $discounts = $discountCalculator->getDiscounts();
 
@@ -385,12 +401,10 @@ function cividiscount_civicrm_buildAmount($pageType, &$form, &$amounts) {
       }
       // we should check for MultParticipant AND set Error Messages only if
       // this $discount is autodiscount or used discount
-      if ($autodiscount || (!empty($code) && strcasecmp($code, $discount['code']) == 0)) {
+      if (!$apcount && 
+        ($autodiscount || (!empty($code) && strcasecmp($code, $discount['code']) == 0))
+      ) {
         $apcount = _cividiscount_checkEventDiscountMultipleParticipants($pageType, $form, $discount);
-      }
-      else {
-        // silently set FALSE
-        $apcount = FALSE;
       }
 
       if (empty($apcount)) {
@@ -658,6 +672,13 @@ function cividiscount_civicrm_postProcess($class, &$form) {
 
       $participant = _cividiscount_get_participant($entity_id);
       $discountParams['contact_id'] = $participant['contact_id'];
+
+      if ($form->getVar('_action') & CRM_Core_Action::UPDATE) {
+        $discountTrack = civicrm_api3('DiscountTrack', 'get', $discountParams);
+        if (empty($discountTrack['is_error']) && !empty($discountTrack['id'])) {
+          $discountParams['id'] = $discountTrack['id'];
+        }
+      }
     }
     // Offline membership.
     elseif (in_array($class, ['CRM_Member_Form_Membership', 'CRM_Member_Form_MembershipRenewal'])) {

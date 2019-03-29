@@ -98,7 +98,7 @@ class CRM_CiviDiscount_BAO_Item extends CRM_CiviDiscount_DAO_Item {
     return NULL;
   }
 
-  public static function getValidDiscounts() {
+  public static function getValidDiscounts($includeUsedCode = FALSE) {
     static $discounts = [];
     static $hasRun = FALSE;
     if ($hasRun) {
@@ -106,6 +106,12 @@ class CRM_CiviDiscount_BAO_Item extends CRM_CiviDiscount_DAO_Item {
       return $discounts;
     }
     $hasRun = TRUE;
+    $params = array();
+    $codeClause = '';
+    if ($includeUsedCode) {
+      $codeClause = " OR code = %1";
+      $params = array(1 => array($includeUsedCode, 'String'));
+    }
 
     $sql = "
   SELECT  id,
@@ -129,9 +135,9 @@ class CRM_CiviDiscount_BAO_Item extends CRM_CiviDiscount_DAO_Item {
   WHERE is_active = 1
   AND (active_on IS NULL OR active_on <= NOW())
   AND (expire_on IS NULL OR expire_on > NOW())
-  AND (count_max = 0 OR count_max > count_use)
+  AND (count_max = 0 OR count_max > count_use {$codeClause})
 ";
-    $dao = CRM_Core_DAO::executeQuery($sql, []);
+    $dao = CRM_Core_DAO::executeQuery($sql, $params);
     while ($dao->fetch()) {
       $a = (array) $dao;
       $discounts[$a['code']] = self::buildDiscountFilters($a);
