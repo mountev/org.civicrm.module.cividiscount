@@ -674,7 +674,10 @@ function cividiscount_civicrm_postProcess($class, &$form) {
       $discountParams['contact_id'] = $participant['contact_id'];
 
       if ($form->getVar('_action') & CRM_Core_Action::UPDATE) {
-        $discountTrack = civicrm_api3('DiscountTrack', 'get', $discountParams);
+        $discountTrackParams = $discountParams;
+        // any change or empty description may not return the same tracker
+        unset($discountTrackParams['description']); 
+        $discountTrack = civicrm_api3('DiscountTrack', 'get', $discountTrackParams);
         if (empty($discountTrack['is_error']) && !empty($discountTrack['id'])) {
           $discountParams['id'] = $discountTrack['id'];
         }
